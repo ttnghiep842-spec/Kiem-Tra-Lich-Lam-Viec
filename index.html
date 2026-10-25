@@ -17,10 +17,6 @@
     .controls { display:grid; grid-template-columns:1.2fr 1fr auto; align-items:end; gap:12px }
     label { display:block; margin-bottom:7px; color:#c0cde0; font-size:.82rem; font-weight:700 }
     input { width:100%; min-height:48px; padding:0 12px; border:1px solid #33455f; border-radius:11px; background:#0b1423; color:var(--text); font:inherit; outline:none }
-    .date-fields { display:grid; grid-template-columns:.8fr .8fr 1.2fr; gap:7px }
-    .date-fields input { padding:0 8px; text-align:center }
-    .date-part label { margin-bottom:4px; font-size:.7rem; text-align:center }
-    input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { opacity:1 }
     input:focus { border-color:var(--accent); box-shadow:0 0 0 3px #66e0c222 }
     button { min-height:48px; padding:0 20px; border:0; border-radius:11px; background:var(--accent); color:#06221e; font:inherit; font-weight:800; cursor:pointer; white-space:nowrap }
     button:hover { filter:brightness(1.06) }
@@ -46,12 +42,8 @@
       <form id="search-form">
         <div class="controls">
           <div>
-            <label>Ngày cần tìm</label>
-            <div class="date-fields">
-              <div class="date-part"><label for="work-day">Ngày</label><input id="work-day" type="number" min="1" max="31" required></div>
-              <div class="date-part"><label for="work-month">Tháng</label><input id="work-month" type="number" min="1" max="12" required></div>
-              <div class="date-part"><label for="work-year">Năm</label><input id="work-year" type="number" min="2000" max="2100" required></div>
-            </div>
+            <label for="work-date">Ngày cần tìm</label>
+            <input id="work-date" type="date" required>
           </div>
           <div><label for="cycle-month">Tháng có ngày 26 đầu chu kỳ</label><input id="cycle-month" type="month" required></div>
           <button type="submit">Tìm ca</button>
@@ -74,9 +66,7 @@
     const form = document.querySelector('#search-form');
     const statusEl = document.querySelector('#status');
     const resultsEl = document.querySelector('#results');
-    const dayInput = document.querySelector('#work-day');
-    const monthInput = document.querySelector('#work-month');
-    const yearInput = document.querySelector('#work-year');
+    const dateInput = document.querySelector('#work-date');
     const cycleMonthInput = document.querySelector('#cycle-month');
     let requestSerial = 0;
 
@@ -88,9 +78,7 @@
       const year = Number(today.year);
       const month = Number(today.month);
       const day = Number(today.day);
-      dayInput.value = String(day);
-      monthInput.value = String(month);
-      yearInput.value = String(year);
+      dateInput.value = String(year).padStart(4, '0') + '-' + String(month).padStart(2, '0') + '-' + String(day).padStart(2, '0');
 
       let cycleYear = year;
       let cycleMonth = month;
@@ -99,19 +87,7 @@
         else cycleMonth--;
       }
       cycleMonthInput.value = String(cycleYear).padStart(4, '0') + '-' + String(cycleMonth).padStart(2, '0');
-      updateDayLimit();
     }
-
-    function updateDayLimit() {
-      const month = Number(monthInput.value);
-      const year = Number(yearInput.value);
-      if (!month || !year) return;
-      const maxDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
-      dayInput.max = String(maxDay);
-      if (Number(dayInput.value) > maxDay) dayInput.value = String(maxDay);
-    }
-    monthInput.addEventListener('change', updateDayLimit);
-    yearInput.addEventListener('change', updateDayLimit);
 
     function norm(value) {
       return String(value ?? '').trim().normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().replace(/\s+/g, ' ');
@@ -250,11 +226,7 @@
       statusEl.textContent = 'Đang đọc lịch từ Google Sheet…';
       statusEl.className = '';
       try {
-        updateDayLimit();
-        const day = Number(dayInput.value);
-        const month = Number(monthInput.value);
-        const year = Number(yearInput.value);
-        const dateValue = String(year).padStart(4, '0') + '-' + String(month).padStart(2, '0') + '-' + String(day).padStart(2, '0');
+        const dateValue = dateInput.value;
         const payload = await loadSheet();
         if (serial !== requestSerial) return;
         if (!payload?.table) throw new Error('Google không trả về bảng dữ liệu. Hãy kiểm tra quyền chia sẻ của sheet.');
