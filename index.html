@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b1220">
+  <title>Tra ca làm</title>
+  <style>
+    :root { color-scheme: dark; --bg:#0b1220; --panel:#111c2e; --muted:#91a3bb; --text:#edf4ff; --line:#26364e; --accent:#66e0c2 }
+    * { box-sizing:border-box }
+    body { margin:0; min-height:100vh; background:radial-gradient(ellipse at 50% -20%,#203954 0,transparent 55%),var(--bg); color:var(--text); font:16px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif }
+    main { width:min(760px,100%); margin:0 auto; padding:42px 20px 64px }
+    .eyebrow { color:var(--accent); font-size:.78rem; font-weight:800; letter-spacing:.14em; text-transform:uppercase }
+    h1 { margin:7px 0 8px; font-size:clamp(2rem,7vw,3rem); line-height:1.1; letter-spacing:-.04em }
+    .intro { margin:0 0 26px; max-width:590px; color:#b6c4d7 }
+    .panel { padding:22px; border:1px solid var(--line); border-radius:20px; background:linear-gradient(145deg,rgba(19,31,50,.96),rgba(13,23,39,.96)); box-shadow:0 20px 55px #02060d66 }
+    .controls { display:grid; grid-template-columns:1.2fr 1fr auto; align-items:end; gap:12px }
+    label { display:block; margin-bottom:7px; color:#c0cde0; font-size:.82rem; font-weight:700 }
+    input { width:100%; min-height:48px; padding:0 12px; border:1px solid #33455f; border-radius:11px; background:#0b1423; color:var(--text); font:inherit; outline:none }
+    .date-fields { display:grid; grid-template-columns:.8fr .8fr 1.2fr; gap:7px }
+    .date-fields input { padding:0 8px; text-align:center }
+    .date-part label { margin-bottom:4px; font-size:.7rem; text-align:center }
+    input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { opacity:1 }
+    input:focus { border-color:var(--accent); box-shadow:0 0 0 3px #66e0c222 }
+    button { min-height:48px; padding:0 20px; border:0; border-radius:11px; background:var(--accent); color:#06221e; font:inherit; font-weight:800; cursor:pointer; white-space:nowrap }
+    button:hover { filter:brightness(1.06) }
+    .hint { margin:13px 0 0; color:var(--muted); font-size:.82rem }
+    #status { min-height:26px; margin:14px 0 0; color:var(--muted); font-size:.9rem }
+    #status.error { color:#ff9d9d } #status.ok { color:#8be3c9 }
+    #results { display:grid; gap:12px; margin-top:18px }
+    .result { display:flex; gap:16px; align-items:center; padding:16px; border:1px solid var(--line); border-radius:15px; background:#0c1727 }
+    .badge { display:grid; place-items:center; width:62px; height:62px; flex:0 0 62px; border-radius:15px; color:#101820; font-weight:900; font-size:1.12rem }
+    .m7 { background:#ffe45e } .a3 { background:#54e3e4 } .n11 { background:#a9dc55 }
+    .shift-title { margin:0; color:#b7c4d7; font-size:.83rem }
+    .names { margin:2px 0 0; font-weight:700; font-size:1.08rem }
+    footer { margin-top:18px; color:#73869f; font-size:.78rem }
+    @media (max-width:620px) { main{padding:30px 16px 48px}.controls{grid-template-columns:1fr 1fr}.controls button{grid-column:1/-1;width:100%}.panel{padding:18px} }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="eyebrow">Lịch phân ca</div>
+    <h1>Ai làm ngày nào?</h1>
+    <p class="intro">Chọn ngày để xem nhân sự theo ca. Chỉ hiện M7, A3 và N11; ca D8 được bỏ qua.</p>
+    <section class="panel" aria-label="Tra cứu lịch làm">
+      <form id="search-form">
+        <div class="controls">
+          <div>
+            <label>Ngày cần tìm</label>
+            <div class="date-fields">
+              <div class="date-part"><label for="work-day">Ngày</label><input id="work-day" type="number" min="1" max="31" value="30" required></div>
+              <div class="date-part"><label for="work-month">Tháng</label><input id="work-month" type="number" min="1" max="12" value="10" required></div>
+              <div class="date-part"><label for="work-year">Năm</label><input id="work-year" type="number" min="2000" max="2100" value="2026" required></div>
+            </div>
+          </div>
+          <div><label for="cycle-month">Tháng có ngày 26 đầu chu kỳ</label><input id="cycle-month" type="month" value="2026-10" required></div>
+          <button type="submit">Tìm ca</button>
+        </div>
+      </form>
+      <p class="hint">Chu kỳ chạy từ ngày 26 đến ngày 25 tháng sau. Chọn tháng chứa ngày 26 đầu chu kỳ.</p>
+      <div id="status" role="status" aria-live="polite"></div>
+      <div id="results" aria-live="polite"></div>
+    </section>
+    <footer>Dữ liệu được đọc trực tiếp từ Google Sheet công khai. Ứng dụng không lưu lịch lên máy chủ.</footer>
+  </main>
+  <script>
+    const SHEET_ID = '1LQVzi2Qgtl3-uGmV7IOhqGpwpCpmXd02zaKJkVnsy0c';
+    const SHEET_GID = '0';
+    const SHIFTS = [
+      { code: 'M7', label: 'Ca M7', className: 'm7' },
+      { code: 'A3', label: 'Ca A3', className: 'a3' },
+      { code: 'N11', label: 'Ca N11', className: 'n11' }
+    ];
+    const form = document.querySelector('#search-form');
+    const statusEl = document.querySelector('#status');
+    const resultsEl = document.querySelector('#results');
+    const dayInput = document.querySelector('#work-day');
+    const monthInput = document.querySelector('#work-month');
+    const yearInput = document.querySelector('#work-year');
+    let requestSerial = 0;
+
+    function updateDayLimit() {
+      const month = Number(monthInput.value);
+      const year = Number(yearInput.value);
+      if (!month || !year) return;
+      const maxDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
+      dayInput.max = String(maxDay);
+      if (Number(dayInput.value) > maxDay) dayInput.value = String(maxDay);
+    }
+    monthInput.addEventListener('change', updateDayLimit);
+    yearInput.addEventListener('change', updateDayLimit);
+
+    function norm(value) {
+      return String(value ?? '').trim().normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().replace(/\s+/g, ' ');
+    }
+    function textOf(cell) {
+      if (cell == null) return '';
+      if (typeof cell !== 'object') return String(cell).trim();
+      return String(cell.f ?? cell.v ?? '').trim();
+    }
+    function dayOf(value) {
+      const m = String(value).trim().match(/^(\d{1,2})(?:\.0)?$/);
+      return m ? Number(m[1]) : null;
+    }
+    function weekdayOf(value) {
+      const s = norm(value).replace(/[.]/g, '');
+      if (['cn', 'chu nhat', 'sun', 'sunday'].includes(s)) return 0;
+      const m = s.match(/^(?:thu\s*)?(2|3|4|5|6|7)$/);
+      return m ? Number(m[1]) - 1 : null;
+    }
+    function loadSheet() {
+      return new Promise((resolve, reject) => {
+        const callback = '__schedule_' + Date.now() + '_' + Math.random().toString(36).slice(2);
+        const script = document.createElement('script');
+        let finished = false;
+        const timeout = setTimeout(() => finish(new Error('Google Sheet phản hồi quá thời gian.')), 18000);
+        function finish(error, data) {
+          if (finished) return;
+          finished = true;
+          clearTimeout(timeout);
+          delete window[callback];
+          script.remove();
+          error ? reject(error) : resolve(data);
+        }
+        window[callback] = payload => {
+          if (payload?.status === 'error') finish(new Error(payload.errors?.[0]?.detailed_message || 'Google Sheet không trả được dữ liệu.'));
+          else finish(null, payload);
+        };
+        script.onerror = () => finish(new Error('Không tải được Google Sheet. Hãy kiểm tra quyền xem bằng liên kết và kết nối mạng.'));
+        const tqx = encodeURIComponent('out:json;responseHandler:' + callback);
+        script.src = 'https://docs.google.com/spreadsheets/d/' + SHEET_ID + '/gviz/tq?tqx=' + tqx + '&gid=' + SHEET_GID + '&headers=1';
+        document.head.appendChild(script);
+      });
+    }
+    function asRow(row, columnCount) {
+      const cells = (row?.c || []).slice();
+      // GViz can omit the blank A2 cell; put it back so sheet columns stay aligned.
+      if (cells.length === columnCount - 1 && norm(textOf(cells[0])) === 'ten') cells.unshift(null);
+      return cells;
+    }
+    function readLayout(table) {
+      const columns = table.cols || [];
+      const dateRow = columns.map(col => textOf(col.label));
+      const rows = (table.rows || []).map(row => asRow(row, columns.length));
+      const grid = [dateRow.map(v => ({ v })), ...rows];
+      let headerIndex = -1;
+      let nameCol = -1;
+      for (let r = 1; r < grid.length; r++) {
+        const cells = grid[r] || [];
+        const found = cells.findIndex(cell => norm(textOf(cell)) === 'ten');
+        if (found >= 0) { headerIndex = r; nameCol = found; break; }
+      }
+      if (headerIndex < 0) {
+        const preview = grid.slice(0, 3).map((row, ri) => 'hàng ' + (ri + 1) + ': ' + row.map((cell, ci) => ci + '=' + textOf(cell)).filter(x => !x.endsWith('=')).join(' | ')).join(' / ');
+        throw new Error('Không tìm thấy ô “Tên” ở hàng tiêu đề nhân viên. Google trả về: ' + (preview || 'trống'));
+      }
+      // In this sheet, A is employee ID and B is name. If GViz omitted blank A2,
+      // alignment above restores B to index 1; use the detected name column.
+      if (nameCol === 0 && norm(textOf(grid[headerIndex][0])) === 'ten') {
+        throw new Error('Google đã làm lệch cột tiêu đề Tên. Không thể ghép tên với dữ liệu nhân viên an toàn.');
+      }
+      const days = dateRow.map((value, col) => ({ col, day: dayOf(value) }));
+      const first26 = days.find(item => item.day === 26);
+      if (!first26) throw new Error('Không thấy ngày 26 trong hàng đầu của sheet để xác định cột bắt đầu chu kỳ.');
+      const weekRow = grid[headerIndex];
+      const weekdays = new Map(weekRow.map((cell, col) => [col, weekdayOf(textOf(cell))]));
+      return { grid, headerIndex, nameCol, days, first26, weekdays };
+    }
+    function targetColumn(layout, dateValue, cycleValue) {
+      const [year, month, day] = dateValue.split('-').map(Number);
+      const [cycleYear, cycleMonth] = cycleValue.split('-').map(Number);
+      const expectedCycleMonth = day >= 26 ? month : month === 1 ? 12 : month - 1;
+      const expectedCycleYear = day >= 26 ? year : month === 1 ? year - 1 : year;
+      if (cycleMonth !== expectedCycleMonth || cycleYear !== expectedCycleYear) {
+        throw new Error('Ngày đã chọn không thuộc chu kỳ bắt đầu ngày 26/' + String(cycleMonth).padStart(2, '0') + '/' + cycleYear + '.');
+      }
+      const offset = Math.round((Date.UTC(year, month - 1, day) - Date.UTC(cycleYear, cycleMonth - 1, 26)) / 86400000);
+      const col = layout.first26.col + offset;
+      const dateCell = layout.days.find(item => item.col === col);
+      if (offset < 0 || !dateCell || dateCell.day !== day) {
+        throw new Error('Không có cột tương ứng với ngày này trong chu kỳ. Kiểm tra hàng ngày trong sheet.');
+      }
+      const jsWeekday = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
+      const sheetWeekday = layout.weekdays.get(col);
+      if (sheetWeekday != null && sheetWeekday !== jsWeekday) {
+        throw new Error('Thứ trong sheet không khớp với ngày đã chọn. Kiểm tra tháng chu kỳ hoặc lịch.');
+      }
+      return { col, year, month, day };
+    }
+    function showResults(layout, target) {
+      const buckets = Object.fromEntries(SHIFTS.map(shift => [shift.code, []]));
+      for (let r = layout.headerIndex + 1; r < layout.grid.length; r++) {
+        const row = layout.grid[r] || [];
+        const name = textOf(row[layout.nameCol]);
+        if (!name) continue;
+        const shift = textOf(row[target.col]).toUpperCase().replace(/\s+/g, '');
+        if (Object.hasOwn(buckets, shift)) buckets[shift].push(name);
+      }
+      resultsEl.replaceChildren();
+      let count = 0;
+      for (const shift of SHIFTS) {
+        const names = buckets[shift.code];
+        count += names.length;
+        const card = document.createElement('article');
+        card.className = 'result';
+        const badge = document.createElement('div');
+        badge.className = 'badge ' + shift.className;
+        badge.textContent = shift.code;
+        const content = document.createElement('div');
+        const title = document.createElement('p');
+        title.className = 'shift-title';
+        title.textContent = shift.label;
+        const list = document.createElement('p');
+        list.className = 'names';
+        list.textContent = names.length ? names.join(', ') : 'Không có người được phân ca';
+        content.append(title, list);
+        card.append(badge, content);
+        resultsEl.append(card);
+      }
+      statusEl.textContent = 'Kết quả ngày ' + String(target.day).padStart(2, '0') + '/' + String(target.month).padStart(2, '0') + '/' + target.year + (count ? '' : ' · Không có người ở ba ca được chọn');
+      statusEl.className = 'ok';
+    }
+    form.addEventListener('submit', async event => {
+      event.preventDefault();
+      const serial = ++requestSerial;
+      resultsEl.replaceChildren();
+      statusEl.textContent = 'Đang đọc lịch từ Google Sheet…';
+      statusEl.className = '';
+      try {
+        updateDayLimit();
+        const day = Number(dayInput.value);
+        const month = Number(monthInput.value);
+        const year = Number(yearInput.value);
+        const dateValue = String(year).padStart(4, '0') + '-' + String(month).padStart(2, '0') + '-' + String(day).padStart(2, '0');
+        const payload = await loadSheet();
+        if (serial !== requestSerial) return;
+        if (!payload?.table) throw new Error('Google không trả về bảng dữ liệu. Hãy kiểm tra quyền chia sẻ của sheet.');
+        const layout = readLayout(payload.table);
+        const target = targetColumn(layout, dateValue, document.querySelector('#cycle-month').value);
+        showResults(layout, target);
+      } catch (error) {
+        if (serial !== requestSerial) return;
+        statusEl.textContent = error.message || 'Có lỗi khi đọc lịch.';
+        statusEl.className = 'error';
+      }
+    });
+    form.requestSubmit();
+  </script>
+</body>
+</html>
