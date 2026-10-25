@@ -40,7 +40,7 @@
 <body>
   <main>
     <div class="eyebrow">Lịch phân ca</div>
-    <h1>Hôm nay ai làm?</h1>
+    <h1>Ai làm ngày nào?</h1>
     <p class="intro">Chọn ngày để xem nhân sự theo ca. Chỉ hiện M7, A3 và N11; ca D8 được bỏ qua.</p>
     <section class="panel" aria-label="Tra cứu lịch làm">
       <form id="search-form">
@@ -48,12 +48,12 @@
           <div>
             <label>Ngày cần tìm</label>
             <div class="date-fields">
-              <div class="date-part"><label for="work-day">Ngày</label><input id="work-day" type="number" min="1" max="31" value="30" required></div>
-              <div class="date-part"><label for="work-month">Tháng</label><input id="work-month" type="number" min="1" max="12" value="10" required></div>
-              <div class="date-part"><label for="work-year">Năm</label><input id="work-year" type="number" min="2000" max="2100" value="2026" required></div>
+              <div class="date-part"><label for="work-day">Ngày</label><input id="work-day" type="number" min="1" max="31" required></div>
+              <div class="date-part"><label for="work-month">Tháng</label><input id="work-month" type="number" min="1" max="12" required></div>
+              <div class="date-part"><label for="work-year">Năm</label><input id="work-year" type="number" min="2000" max="2100" required></div>
             </div>
           </div>
-          <div><label for="cycle-month">Tháng có ngày 26 đầu chu kỳ</label><input id="cycle-month" type="month" value="2026-10" required></div>
+          <div><label for="cycle-month">Tháng có ngày 26 đầu chu kỳ</label><input id="cycle-month" type="month" required></div>
           <button type="submit">Tìm ca</button>
         </div>
       </form>
@@ -77,7 +77,30 @@
     const dayInput = document.querySelector('#work-day');
     const monthInput = document.querySelector('#work-month');
     const yearInput = document.querySelector('#work-year');
+    const cycleMonthInput = document.querySelector('#cycle-month');
     let requestSerial = 0;
+
+    function setTodayDefaults() {
+      const parts = new Intl.DateTimeFormat('en-GB', {
+        timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit'
+      }).formatToParts(new Date());
+      const today = Object.fromEntries(parts.map(part => [part.type, part.value]));
+      const year = Number(today.year);
+      const month = Number(today.month);
+      const day = Number(today.day);
+      dayInput.value = String(day);
+      monthInput.value = String(month);
+      yearInput.value = String(year);
+
+      let cycleYear = year;
+      let cycleMonth = month;
+      if (day < 26) {
+        if (month === 1) { cycleYear--; cycleMonth = 12; }
+        else cycleMonth--;
+      }
+      cycleMonthInput.value = String(cycleYear).padStart(4, '0') + '-' + String(cycleMonth).padStart(2, '0');
+      updateDayLimit();
+    }
 
     function updateDayLimit() {
       const month = Number(monthInput.value);
@@ -244,6 +267,7 @@
         statusEl.className = 'error';
       }
     });
+    setTodayDefaults();
     form.requestSubmit();
   </script>
 </body>
